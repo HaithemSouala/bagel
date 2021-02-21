@@ -58,48 +58,69 @@ def random_greeting():
 
 def random_message():
     messages = load_data().getAll()
-    return random.choice(messages)
+    message = random.choice(messages)
+
+    if message["used"] == True:
+        random_message()
+    else:
+        delete_message(message)
+
+    return message
+
+def delete_message(message: object):
+    id = message["id"]
+    print(id)
+    messages = db.getDb("donutsdb.json")
+    messages.updateById(str(id), {"used": True})
 
 def clean_message():
     msg_object = random_message()
+    greeting = random_greeting()
     message = {
-        "text": random_greeting() + "\n>"+ msg_object['short_message'],
+        "text": greeting + "\n>"+ msg_object['short_message'],
         "image": msg_object['image_url']
     } 
     return message
 
-"""
-{
-	"blocks": [
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "Salut @here, it's :bagel: time,\n>Who is one person you admire and why?"
-			}
-		},
-		{
-			"type": "image",
-			"image_url": "https://media.giphy.com/media/dyLZiU6Vg0tTASdX1x/giphy.gif",
-			"alt_text": "marg"
-		}
-	]
-}
+@schedulder.scheduled_job('cron', hour=21, minute=46, start_date='2021-02-21', end_date='2021-02-22', timezone='Europe/Paris')
+def bot_introduction():
+    message = {
+        "channel": slack_channel,
+        "text": "Hey WOOP, Please, let me introduce myself,\nMy name is Bagel :bagel:, i'am here to replace `donuts`, if you asking why? because he's sucks and so expensive for a dumb bot  $$$ :money_with_wings: #fuck_donuts.\nFor the record, i'am developped by *Haithem SOUALA*, and the questions database was Hacked by *Hélène BAILLEUL* (someone should call the police :male_police_officer: :female_police_officer:, this girl is dangerous). \n My first mission will start in less than one minute,\n>I love you all, BISOUS :heart:"
+    }
 
-"""
-#@schedulder.scheduled_job('cron', day_of_week='mon-fri', hour=16, minute=00, timezone='Europe/Paris')
-@schedulder.scheduled_job('interval', minutes=1)
+    try:
+        results = requests.post(slack_url, json = message)
+    except Exception as err:
+        print("Error while sending message: {0}".format(err))
+    
+    response = {
+        'date': str(datetime.datetime.now()),
+        'message': message,
+        'statusCode': results.status_code
+    }
+
+    return response
+
+
+#@schedulder.scheduled_job('interval', minutes=1)
+@schedulder.scheduled_job('cron', day_of_week='mon-fri', hour=16, minute=00, timezone='Europe/Paris')
 def send_message():
-    blocks = [{"type": "section", "text": {"type": "mrkdwn" ,"text": clean_message()['text'] }}]
+    message = clean_message()
+    
+    text = message['text']
+    image = message['image']
+    
+    blocks = [{"type": "section", "text": {"type": "mrkdwn" ,"text": text }}]
 
-    if clean_message()['image']:
-        blocks.append({"type": "image","image_url": clean_message()['image'], "alt_text": "image"})
+    if image:
+        blocks.append({"type": "image","image_url": image, "alt_text": "image"})
 
     message = {
         "channel": slack_channel,
         "blocks": blocks
     }
-    print(message)
+
     try:
         results = requests.post(slack_url, json = message)
     except Exception as err:
